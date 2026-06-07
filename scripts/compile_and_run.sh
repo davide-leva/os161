@@ -5,14 +5,58 @@ interactive=false
 debug=false
 floating_windows=false
 niri_workspace_changed=false
+
+default_config="DUMBVM"
 gdb_port=16161
+
 project_home="$HOME/os161"
 src_dir="$project_home/src"
 root_dir="$project_home/root"
 tools_dir="$project_home/tools"
 libcompat_dir="$project_home/.os161-libcompat"
+
 xterm_font="JetBrainsMono Nerd Font Mono"
 xterm_font_size=16
+os161_xterm_bg="#071411"
+os161_xterm_fg="#d1fae5"
+os161_xterm_cursor="#34d399"
+os161_xterm_border="#059669"
+os161_xterm_geometry="132x36"
+gdb_xterm_bg="#10131f"
+gdb_xterm_fg="#f8fafc"
+gdb_xterm_cursor="#f59e0b"
+gdb_xterm_border="#2563eb"
+gdb_xterm_geometry="150x44"
+xterm_color0="#0b1220"
+xterm_color1="#ef4444"
+xterm_color2="#22c55e"
+xterm_color3="#eab308"
+xterm_color4="#3b82f6"
+xterm_color5="#a855f7"
+xterm_color6="#14b8a6"
+xterm_color7="#e5e7eb"
+xterm_color8="#475569"
+xterm_color9="#f87171"
+xterm_color10="#4ade80"
+xterm_color11="#facc15"
+xterm_color12="#60a5fa"
+xterm_color13="#c084fc"
+xterm_color14="#2dd4bf"
+xterm_color15="#ffffff"
+xterm_internal_border=10
+xterm_save_lines=10000
+
+niri_window_lookup_attempts=10
+niri_window_lookup_delay=0.15
+niri_fallback_workspace=999
+niri_full_width="100%"
+niri_split_width="50%"
+gdb_launch_delay=1
+interactive_progress_steps=5
+interactive_progress_delay=0.06
+toolchain_gcc_version="4.8.3"
+os161_xterm_title="OS161"
+gdb_xterm_title="OS161-GDB"
 
 export PATH="$tools_dir/bin:$PATH"
 
@@ -32,7 +76,10 @@ Usage: $0 [options] [CONFIG]
 
 Build and run an OS/161 kernel.
 
-CONFIG defaults to DUMBVM.
+When CONFIG is omitted, the script tries to use a kernel configuration
+matching the current git branch name uppercased. For example, branch lab2
+uses LAB2 if src/kern/conf/LAB2 exists. Otherwise it asks whether to use
+$default_config.
 
 By default, when running under niri, the script moves to the workspace
 below the current one before opening xterms. OS161 goes on the left;
@@ -50,6 +97,8 @@ Options:
   -f, --floating      Keep the xterms floating in the current workspace.
   -w                  Legacy alias for --debug.
   -h, --help          Show this help.
+
+Short options can be combined; for example, -idf is the same as -i -d -f.
 
 Debug flow:
   1. Build and install the selected kernel.
@@ -79,6 +128,32 @@ while [ $# -gt 0 ]; do
 			usage
 			exit 0
 			;;
+		-[!-]*)
+			short_options="${1#-}"
+			for ((i = 0; i < ${#short_options}; i++)); do
+				case "${short_options:i:1}" in
+					i)
+						interactive=true
+						;;
+					d|w)
+						debug=true
+						;;
+					f)
+						floating_windows=true
+						;;
+					h)
+						usage
+						exit 0
+						;;
+					*)
+						printf "Unknown option: -%s\n\n" "${short_options:i:1}" >&2
+						usage >&2
+						exit 2
+						;;
+				esac
+			done
+			shift
+			;;
 		--)
 			shift
 			break
@@ -100,8 +175,8 @@ log() {
 	printf "\n%s" "$1"
 
 	if [ "$interactive" = true ]; then
-		for _ in 1 2 3 4 5; do
-			sleep 0.06
+		for ((i = 0; i < interactive_progress_steps; i++)); do
+			sleep "$interactive_progress_delay"
 			printf "."
 		done
 	fi
@@ -112,26 +187,26 @@ log() {
 launch_xterm() {
 	local title="$1"
 	local command="$2"
-	local bg="#111827"
-	local fg="#d1fae5"
-	local cursor="#34d399"
-	local border="#059669"
-	local geometry="132x36"
+	local bg="$os161_xterm_bg"
+	local fg="$os161_xterm_fg"
+	local cursor="$os161_xterm_cursor"
+	local border="$os161_xterm_border"
+	local geometry="$os161_xterm_geometry"
 
 	case "$title" in
-		OS161-GDB)
-			bg="#10131f"
-			fg="#f8fafc"
-			cursor="#f59e0b"
-			border="#2563eb"
-			geometry="150x44"
+		"$gdb_xterm_title")
+			bg="$gdb_xterm_bg"
+			fg="$gdb_xterm_fg"
+			cursor="$gdb_xterm_cursor"
+			border="$gdb_xterm_border"
+			geometry="$gdb_xterm_geometry"
 			;;
-		OS161)
-			bg="#071411"
-			fg="#d1fae5"
-			cursor="#34d399"
-			border="#059669"
-			geometry="132x36"
+		"$os161_xterm_title")
+			bg="$os161_xterm_bg"
+			fg="$os161_xterm_fg"
+			cursor="$os161_xterm_cursor"
+			border="$os161_xterm_border"
+			geometry="$os161_xterm_geometry"
 			;;
 	esac
 
@@ -144,33 +219,33 @@ launch_xterm() {
 		-xrm "*faceSize: $xterm_font_size" \
 		-xrm "*utf8: 2" \
 		-xrm "*cursorBlink: true" \
-		-xrm "*internalBorder: 10" \
-		-xrm "*saveLines: 10000" \
+		-xrm "*internalBorder: $xterm_internal_border" \
+		-xrm "*saveLines: $xterm_save_lines" \
 		-xrm "*scrollBar: true" \
 		-xrm "*rightScrollBar: true" \
-		-xrm "*color0: #0b1220" \
-		-xrm "*color1: #ef4444" \
-		-xrm "*color2: #22c55e" \
-		-xrm "*color3: #eab308" \
-		-xrm "*color4: #3b82f6" \
-		-xrm "*color5: #a855f7" \
-		-xrm "*color6: #14b8a6" \
-		-xrm "*color7: #e5e7eb" \
-		-xrm "*color8: #475569" \
-		-xrm "*color9: #f87171" \
-		-xrm "*color10: #4ade80" \
-		-xrm "*color11: #facc15" \
-		-xrm "*color12: #60a5fa" \
-		-xrm "*color13: #c084fc" \
-		-xrm "*color14: #2dd4bf" \
-		-xrm "*color15: #ffffff" \
+		-xrm "*color0: $xterm_color0" \
+		-xrm "*color1: $xterm_color1" \
+		-xrm "*color2: $xterm_color2" \
+		-xrm "*color3: $xterm_color3" \
+		-xrm "*color4: $xterm_color4" \
+		-xrm "*color5: $xterm_color5" \
+		-xrm "*color6: $xterm_color6" \
+		-xrm "*color7: $xterm_color7" \
+		-xrm "*color8: $xterm_color8" \
+		-xrm "*color9: $xterm_color9" \
+		-xrm "*color10: $xterm_color10" \
+		-xrm "*color11: $xterm_color11" \
+		-xrm "*color12: $xterm_color12" \
+		-xrm "*color13: $xterm_color13" \
+		-xrm "*color14: $xterm_color14" \
+		-xrm "*color15: $xterm_color15" \
 		-fa "$xterm_font" \
 		-fs "$xterm_font_size" \
 		-bg "$bg" \
 		-fg "$fg" \
 		-cr "$cursor" \
 		-bd "$border" \
-		-b 10 \
+		-b "$xterm_internal_border" \
 		-sb \
 		-rightbar \
 		-geometry "$geometry" \
@@ -191,7 +266,7 @@ prepare_niri_workspace() {
 	fi
 
 	niri msg action focus-workspace-down >/dev/null 2>&1 ||
-		niri msg action focus-workspace 999 >/dev/null 2>&1 ||
+		niri msg action focus-workspace "$niri_fallback_workspace" >/dev/null 2>&1 ||
 		return
 
 	niri_workspace_changed=true
@@ -218,8 +293,8 @@ place_niri_window() {
 		return
 	fi
 
-	for _ in 1 2 3 4 5 6 7 8 9 10; do
-		sleep 0.15
+	for ((i = 0; i < niri_window_lookup_attempts; i++)); do
+		sleep "$niri_window_lookup_delay"
 
 		if command -v jq >/dev/null 2>&1; then
 			window_id=$(
@@ -260,25 +335,25 @@ place_niri_window() {
 			niri msg action focus-window --id "$window_id" >/dev/null 2>&1 || true
 			niri msg action move-window-to-tiling --id "$window_id" >/dev/null 2>&1 || true
 
-			if [ "$debug" = false ] && [ "$title" = "OS161" ]; then
+			if [ "$debug" = false ] && [ "$title" = "$os161_xterm_title" ]; then
 				niri msg action move-column-to-index 1 >/dev/null 2>&1 || true
-				niri msg action set-column-width "100%" >/dev/null 2>&1 || true
+				niri msg action set-column-width "$niri_full_width" >/dev/null 2>&1 || true
 				return
 			fi
 
-			if [ "$title" = "OS161-GDB" ]; then
+			if [ "$title" = "$gdb_xterm_title" ]; then
 				column_index=2
 			fi
 
 			niri msg action move-column-to-index "$column_index" >/dev/null 2>&1 || true
-			niri msg action set-column-width "50%" >/dev/null 2>&1 || true
+			niri msg action set-column-width "$niri_split_width" >/dev/null 2>&1 || true
 			return
 		fi
 	done
 }
 
 prepare_toolchain_libs() {
-	local cc1="$tools_dir/libexec/gcc/mips-harvard-os161/4.8.3/cc1"
+	local cc1="$tools_dir/libexec/gcc/mips-harvard-os161/$toolchain_gcc_version/cc1"
 	local gdb="$tools_dir/bin/mips-harvard-os161-gdb"
 	local needs_libcompat=false
 
@@ -326,12 +401,73 @@ prepare_toolchain_libs() {
 
 prepare_toolchain_libs
 
-if [ $# -ne 1 ]; then
-	log "Using default configuration DUMBVM"
-	conf="DUMBVM"
-else
-	conf="$1"
-fi
+config_exists() {
+	[ -f "$src_dir/kern/conf/$1" ]
+}
+
+branch_config_name() {
+	local branch
+
+	branch=$(git -C "$project_home" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+	if [ -z "$branch" ] || [ "$branch" = "HEAD" ]; then
+		return 1
+	fi
+
+	printf "%s" "$branch" | tr '[:lower:]' '[:upper:]' | tr -c '[:alnum:]_' '_'
+}
+
+confirm_default_config() {
+	local requested_config="$1"
+	local answer
+
+	printf "Warning: kernel configuration %s does not exist yet.\n" "$requested_config" >&2
+	printf "Use default configuration %s instead? [Y/n] " "$default_config" >&2
+	if ! read -r answer; then
+		printf "\nAborted. No answer received.\n" >&2
+		exit 2
+	fi
+
+	case "$answer" in
+		n|N|no|NO|No)
+			printf "Aborted. Create src/kern/conf/%s or pass an existing CONFIG.\n" "$requested_config" >&2
+			exit 2
+			;;
+		*)
+			conf="$default_config"
+			;;
+	esac
+}
+
+select_config() {
+	local branch_config
+
+	if [ $# -eq 1 ]; then
+		conf="$1"
+		return
+	fi
+
+	if [ $# -gt 1 ]; then
+		printf "Too many arguments.\n\n" >&2
+		usage >&2
+		exit 2
+	fi
+
+	branch_config=$(branch_config_name || true)
+	if [ -n "$branch_config" ] && config_exists "$branch_config"; then
+		conf="$branch_config"
+		log "Using branch configuration $conf"
+		return
+	fi
+
+	if [ -z "$branch_config" ]; then
+		branch_config="$default_config"
+	fi
+
+	confirm_default_config "$branch_config"
+	log "Using default configuration $conf"
+}
+
+select_config "$@"
 
 log "Applying configuration"
 
@@ -362,21 +498,21 @@ prepare_niri_workspace
 
 if [ "$debug" = true ]; then
 	launch_xterm \
-		"OS161" \
+		"$os161_xterm_title" \
 		"cd '$root_dir'; exec sys161 -w -p '$gdb_port' kernel"
 
 	SYS161_XTERM_PID=$LAST_XTERM_PID
 
-	sleep 1
+	sleep "$gdb_launch_delay"
 
 	launch_xterm \
-		"OS161-GDB" \
+		"$gdb_xterm_title" \
 		"cd '$root_dir'; exec mips-harvard-os161-gdb -tui kernel -ex 'target remote :$gdb_port'"
 
 	GDB_XTERM_PID=$LAST_XTERM_PID
 else
 	launch_xterm \
-		"OS161" \
+		"$os161_xterm_title" \
 		"cd '$root_dir'; exec sys161 kernel"
 
 	SYS161_XTERM_PID=$LAST_XTERM_PID

@@ -10,6 +10,7 @@ src/kern/compile/*/includelinks
 
 # Installed OS/161 root outputs
 src/build
+src/kern/compile
 root/
 
 # Userland/object build outputs
