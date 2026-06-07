@@ -1,0 +1,36 @@
+# OS/161 build outputs
+src/kern/compile/*/*.o
+src/kern/compile/*/.depend*
+src/kern/compile/*/kernel
+src/kern/compile/*/kernel-*
+src/kern/compile/*/vers.c
+src/kern/compile/*/vers.o
+src/kern/compile/*/version
+src/kern/compile/*/includelinks
+
+# Installed OS/161 root outputs
+src/build
+root/
+
+# Userland/object build outputs
+*.o
+*.a
+*.d
+*.depend
+.depend*
+core
+core.*
+
+# Generated compat/helper dirs
+.os161-libcompat/
+
+# Toolchains and downloaded/build directories
+tools/
+toolbuild/
+
+# Editor/OS noise
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*~
