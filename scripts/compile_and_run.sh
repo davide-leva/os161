@@ -4,6 +4,8 @@ set -e
 interactive=false
 debug=false
 floating_windows=false
+compile_only=false
+clean_only=false
 niri_workspace_changed=false
 
 default_config="DUMBVM"
@@ -73,6 +75,7 @@ trap cleanup EXIT
 usage() {
 	cat <<EOF
 Usage: $0 [options] [CONFIG]
+       $0 [options] clean [CONFIG]
 
 Build and run an OS/161 kernel.
 
@@ -95,10 +98,12 @@ Options:
                       so OS/161 waits before executing the kernel. It then
                       opens GDB and runs "target remote :$gdb_port" for you.
   -f, --floating      Keep the xterms floating in the current workspace.
+  -c, --compile-only  Build and install the kernel, then stop before running it.
+  -k, --clean         Clean the selected kernel build directory, then stop.
   -w                  Legacy alias for --debug.
   -h, --help          Show this help.
 
-Short options can be combined; for example, -idf is the same as -i -d -f.
+Short options can be combined; for example, -idfck is the same as -i -d -f -c -k.
 
 Debug flow:
   1. Build and install the selected kernel.
@@ -124,6 +129,14 @@ while [ $# -gt 0 ]; do
 			floating_windows=true
 			shift
 			;;
+		-c|--compile-only)
+			compile_only=true
+			shift
+			;;
+		-k|--clean)
+			clean_only=true
+			shift
+			;;
 		-h|--help)
 			usage
 			exit 0
@@ -140,6 +153,12 @@ while [ $# -gt 0 ]; do
 						;;
 					f)
 						floating_windows=true
+						;;
+					c)
+						compile_only=true
+						;;
+					k)
+						clean_only=true
 						;;
 					h)
 						usage
@@ -168,6 +187,11 @@ while [ $# -gt 0 ]; do
 			;;
 	esac
 done
+
+if [ "${1:-}" = "clean" ]; then
+	clean_only=true
+	shift
+fi
 
 log() {
 	clear
@@ -476,15 +500,31 @@ cd "$src_dir/kern/conf"
 
 log "Configuration applied"
 
-log "Building kernel"
-
 cd "$src_dir/kern/compile/$conf"
+
+if [ "$clean_only" = true ]; then
+	log "Cleaning kernel build"
+	bmake clean
+	echo ""
+	echo "Clean mode: kernel build directory cleaned."
+	echo ""
+	exit 0
+fi
+
+log "Building kernel"
 
 bmake depend
 bmake
 bmake install
 
 log "Kernel build finished"
+
+if [ "$compile_only" = true ]; then
+	echo ""
+	echo "Compile-only mode: kernel built and installed."
+	echo ""
+	exit 0
+fi
 
 clear
 
