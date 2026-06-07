@@ -538,6 +538,7 @@ static const char *opsmenu[] = {
 	#if OPT_EXTRA_CMD
 	"[rev]     Reverse a string          ",
 	"[find]    Find string in string     ",
+	"[eval]    Evaluate math expression  ",
 	#endif
 	"[debug]   Drop to debugger          ",
 	"[panic]   Intentional panic         ",
@@ -652,6 +653,7 @@ static struct {
 	#if OPT_EXTRA_CMD
 	{ "rev",	cmd_rev },
 	{ "find",	cmd_find },
+	{ "eval",	cmd_eval },
 	#endif
 
 	{ "debug",	cmd_debug },
