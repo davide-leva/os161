@@ -494,6 +494,87 @@ cmd_kheapdump(int nargs, char **args)
 	return 0;
 }
 
+/*
+ * Command for reversing a string.
+ */
+static
+int
+cmd_rev(int nargs, char **args)
+{
+	const char *str;
+	size_t len;
+
+	if (nargs != 2) {
+		kprintf("Usage: rev string\n");
+		kprintf("       rev \"string with spaces\"\n");
+		return EINVAL;
+	}
+
+	str = args[1];
+	len = strlen(str);
+
+	while (len > 0) {
+		len--;
+		kprintf("%c", str[len]);
+	}
+	kprintf("\n");
+
+	return 0;
+}
+
+/*
+ * Command for finding one string inside another.
+ */
+static
+int
+cmd_find(int nargs, char **args)
+{
+	const char *needle, *haystack;
+	size_t needlelen, haystacklen;
+	size_t i, j;
+	bool found;
+
+	if (nargs != 3) {
+		kprintf("Usage: find needle haystack\n");
+		kprintf("       find \"needle with spaces\" \"haystack with spaces\"\n");
+		return EINVAL;
+	}
+
+	needle = args[1];
+	haystack = args[2];
+	needlelen = strlen(needle);
+	haystacklen = strlen(haystack);
+	found = false;
+
+	if (needlelen == 0) {
+		kprintf("found at index 0\n");
+		return 0;
+	}
+
+	if (needlelen > haystacklen) {
+		kprintf("not found\n");
+		return 0;
+	}
+
+	for (i = 0; i <= haystacklen - needlelen; i++) {
+		for (j = 0; j < needlelen; j++) {
+			if (haystack[i+j] != needle[j]) {
+				break;
+			}
+		}
+		if (j == needlelen) {
+			kprintf("found at index %u\n", (unsigned)i);
+			found = true;
+		}
+	}
+
+	if (!found) {
+		kprintf("not found\n");
+	}
+
+	return 0;
+}
+
 ////////////////////////////////////////
 //
 // Menus.
@@ -533,6 +614,8 @@ static const char *opsmenu[] = {
 	"[cd]      Change directory          ",
 	"[pwd]     Print current directory   ",
 	"[sync]    Sync filesystems          ",
+	"[rev]     Reverse a string          ",
+	"[find]    Find string in string     ",
 	"[debug]   Drop to debugger          ",
 	"[panic]   Intentional panic         ",
 	"[deadlock] Intentional deadlock     ",
@@ -641,6 +724,8 @@ static struct {
 	{ "cd",		cmd_chdir },
 	{ "pwd",	cmd_pwd },
 	{ "sync",	cmd_sync },
+	{ "rev",	cmd_rev },
+	{ "find",	cmd_find },
 	{ "debug",	cmd_debug },
 	{ "panic",	cmd_panic },
 	{ "deadlock",	cmd_deadlock },
@@ -711,6 +796,69 @@ static struct {
 };
 
 /*
+ * Split a command into arguments.
+ *
+ * Whitespace separates arguments. Double quotes group whitespace into a
+ * single argument; the quotes are removed in-place.
+ */
+static
+int
+parse_args(char *cmd, int *nargs_ret, char **args)
+{
+	char *p;
+	int nargs;
+
+	p = cmd;
+	nargs = 0;
+
+	while (*p) {
+		while (*p == ' ' || *p == '\t') {
+			p++;
+		}
+		if (*p == 0) {
+			break;
+		}
+
+		if (nargs >= MAXMENUARGS) {
+			kprintf("Command line has too many words\n");
+			return E2BIG;
+		}
+
+		if (*p == '"') {
+			p++;
+			args[nargs++] = p;
+
+			while (*p != 0 && *p != '"') {
+				p++;
+			}
+
+			if (*p != '"') {
+				kprintf("Unterminated quoted string\n");
+				return EINVAL;
+			}
+
+			*p = 0;
+			p++;
+		}
+		else {
+			args[nargs++] = p;
+
+			while (*p != 0 && *p != ' ' && *p != '\t') {
+				p++;
+			}
+
+			if (*p != 0) {
+				*p = 0;
+				p++;
+			}
+		}
+	}
+
+	*nargs_ret = nargs;
+	return 0;
+}
+
+/*
  * Process a single command.
  */
 static
@@ -720,19 +868,11 @@ cmd_dispatch(char *cmd)
 	struct timespec before, after, duration;
 	char *args[MAXMENUARGS];
 	int nargs=0;
-	char *word;
-	char *context;
 	int i, result;
 
-	for (word = strtok_r(cmd, " \t", &context);
-	     word != NULL;
-	     word = strtok_r(NULL, " \t", &context)) {
-
-		if (nargs >= MAXMENUARGS) {
-			kprintf("Command line has too many words\n");
-			return E2BIG;
-		}
-		args[nargs++] = word;
+	result = parse_args(cmd, &nargs, args);
+	if (result) {
+		return result;
 	}
 
 	if (nargs==0) {
