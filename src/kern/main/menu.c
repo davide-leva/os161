@@ -74,24 +74,23 @@ static
 void
 cmd_progthread(void *ptr, unsigned long nargs)
 {
-	char **args = ptr;
+	char *progarg = ptr;
 	char progname[128];
+	char displayname[128];
 	int result;
 
 	KASSERT(nargs >= 1);
 
-	if (nargs > 2) {
-		kprintf("Warning: argument passing from menu not supported\n");
-	}
-
 	/* Hope we fit. */
-	KASSERT(strlen(args[0]) < sizeof(progname));
+	KASSERT(strlen(progarg) < sizeof(progname));
 
-	strcpy(progname, args[0]);
+	strcpy(progname, progarg);
+	strcpy(displayname, progarg);
+	kfree(progarg);
 
 	result = runprogram(progname);
 	if (result) {
-		kprintf("Running program %s failed: %s\n", args[0],
+		kprintf("Running program %s failed: %s\n", displayname,
 			strerror(result));
 		return;
 	}
@@ -116,7 +115,12 @@ int
 common_prog(int nargs, char **args)
 {
 	struct proc *proc;
+	char *progarg;
 	int result;
+
+	if (nargs > 1) {
+		kprintf("Warning: argument passing from menu not supported\n");
+	}
 
 	/* Create a process for the new program to run in. */
 	proc = proc_create_runprogram(args[0] /* name */);
@@ -124,12 +128,19 @@ common_prog(int nargs, char **args)
 		return ENOMEM;
 	}
 
+	progarg = kstrdup(args[0]);
+	if (progarg == NULL) {
+		proc_destroy(proc);
+		return ENOMEM;
+	}
+
 	result = thread_fork(args[0] /* thread name */,
 			proc /* new process */,
 			cmd_progthread /* thread function */,
-			args /* thread arg */, nargs /* thread arg */);
+			progarg /* thread arg */, nargs /* thread arg */);
 	if (result) {
 		kprintf("thread_fork failed: %s\n", strerror(result));
+		kfree(progarg);
 		proc_destroy(proc);
 		return result;
 	}

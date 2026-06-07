@@ -100,16 +100,33 @@ syscall(struct trapframe *tf)
 	retval = 0;
 
 	switch (callno) {
-	    case SYS_reboot:
-		err = sys_reboot(tf->tf_a0);
+		case SYS__exit: // no. 3
+		sys__exit((int)tf->tf_a0);
+		err = 0;
 		break;
 
-	    case SYS___time:
+		case SYS_read: // no. 50
+		err = sys_read((int)tf->tf_a0,
+			(userptr_t)tf->tf_a1,
+			(size_t)tf->tf_a2,
+			&retval);
+		break;
+
+		case SYS_write: // no. 55
+		err = sys_write((int)tf->tf_a0,
+			(userptr_t)tf->tf_a1,
+			(size_t)tf->tf_a2,
+			&retval);
+		break;
+
+	    case SYS___time: // no. 113
 		err = sys___time((userptr_t)tf->tf_a0,
 				 (userptr_t)tf->tf_a1);
 		break;
 
-	    /* Add stuff here */
+		case SYS_reboot: // no. 119
+		err = sys_reboot(tf->tf_a0);
+		break;
 
 	    default:
 		kprintf("Unknown syscall %d\n", callno);

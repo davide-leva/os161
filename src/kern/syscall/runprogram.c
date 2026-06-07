@@ -40,6 +40,7 @@
 #include <proc.h>
 #include <current.h>
 #include <addrspace.h>
+#include <copyinout.h>
 #include <vm.h>
 #include <vfs.h>
 #include <syscall.h>
@@ -56,12 +57,20 @@ runprogram(char *progname)
 {
 	struct addrspace *as;
 	struct vnode *v;
-	vaddr_t entrypoint, stackptr;
+	vaddr_t entrypoint, stackptr, argvptr;
+	vaddr_t argv[2];
+	char *argv0;
 	int result;
+
+	argv0 = kstrdup(progname);
+	if (argv0 == NULL) {
+		return ENOMEM;
+	}
 
 	/* Open the file. */
 	result = vfs_open(progname, O_RDONLY, 0, &v);
 	if (result) {
+		kfree(argv0);
 		return result;
 	}
 
@@ -72,6 +81,7 @@ runprogram(char *progname)
 	as = as_create();
 	if (as == NULL) {
 		vfs_close(v);
+		kfree(argv0);
 		return ENOMEM;
 	}
 
@@ -84,6 +94,7 @@ runprogram(char *progname)
 	if (result) {
 		/* p_addrspace will go away when curproc is destroyed */
 		vfs_close(v);
+		kfree(argv0);
 		return result;
 	}
 
@@ -94,11 +105,34 @@ runprogram(char *progname)
 	result = as_define_stack(as, &stackptr);
 	if (result) {
 		/* p_addrspace will go away when curproc is destroyed */
+		kfree(argv0);
 		return result;
 	}
 
+	stackptr -= strlen(argv0) + 1;
+	stackptr &= ~((vaddr_t)3);
+	result = copyoutstr(argv0, (userptr_t)stackptr, strlen(argv0) + 1,
+	    NULL);
+	if (result) {
+		kfree(argv0);
+		return result;
+	}
+
+	argv[0] = stackptr;
+	argv[1] = 0;
+	stackptr -= sizeof(argv);
+	stackptr &= ~((vaddr_t)7);
+	argvptr = stackptr;
+	result = copyout(argv, (userptr_t)argvptr, sizeof(argv));
+	if (result) {
+		kfree(argv0);
+		return result;
+	}
+
+	kfree(argv0);
+
 	/* Warp to user mode. */
-	enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
+	enter_new_process(1 /*argc*/, (userptr_t)argvptr,
 			  NULL /*userspace addr of environment*/,
 			  stackptr, entrypoint);
 
@@ -106,4 +140,3 @@ runprogram(char *progname)
 	panic("enter_new_process returned\n");
 	return EINVAL;
 }
-

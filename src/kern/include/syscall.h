@@ -56,7 +56,12 @@ __DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
  * Prototypes for IN-KERNEL entry points for system call implementations.
  */
 
-int sys_reboot(int code);
-int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
+int 		sys_reboot(int code);
+int 		sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
+int			sys_read(int fd, userptr_t buffer, size_t size,
+			    int32_t *retval);
+int			sys_write(int fd, userptr_t buffer, size_t size,
+			    int32_t *retval);
+__DEAD void sys__exit(int exit_code);
 
 #endif /* _SYSCALL_H_ */
