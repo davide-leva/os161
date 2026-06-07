@@ -441,3 +441,13 @@ file		test/semunit.c
 file		test/kmalloctest.c
 file		test/fstest.c
 optfile net	test/nettest.c
+
+
+########################################
+#                                      #
+#       Implementations options        #
+#                                      #
+########################################
+
+defoption   extra_cmd
+optfile     extra_cmd    main/extra_cmd.c
