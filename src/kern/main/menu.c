@@ -539,6 +539,9 @@ static const char *opsmenu[] = {
 	"[rev]     Reverse a string          ",
 	"[find]    Find string in string     ",
 	"[eval]    Evaluate math expression  ",
+	"[ascii]   Char to ASCII code        ",
+	"[bin]     Number to binary          ",
+	"[hex]     Number to hexadecimal     ",
 	#endif
 	"[debug]   Drop to debugger          ",
 	"[panic]   Intentional panic         ",
@@ -654,6 +657,9 @@ static struct {
 	{ "rev",	cmd_rev },
 	{ "find",	cmd_find },
 	{ "eval",	cmd_eval },
+	{ "ascii",	cmd_ascii },
+	{ "bin",	cmd_bin },
+	{ "hex",	cmd_hex },
 	#endif
 
 	{ "debug",	cmd_debug },

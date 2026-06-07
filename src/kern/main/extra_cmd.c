@@ -141,3 +141,63 @@ cmd_eval(int nargs, char **args)
 	kprintf("%d.%03d\n", whole, frac);
 	return 0;
 }
+
+/*
+ * Command for printing the ASCII code of a character.
+ */
+int
+cmd_ascii(int nargs, char **args)
+{
+	if (nargs != 2 || strlen(args[1]) != 1) {
+		kprintf("Usage: ascii character\n");
+		return EINVAL;
+	}
+
+	kprintf("%c -> %u\n", args[1][0], (unsigned char)args[1][0]);
+	return 0;
+}
+
+/*
+ * Command for printing the 8-bit binary representation of a number.
+ */
+int
+cmd_bin(int nargs, char **args)
+{
+	unsigned value;
+	int i;
+
+	if (nargs != 2) {
+		kprintf("Usage: bin number\n");
+		return EINVAL;
+	}
+
+	value = (unsigned)atoi(args[1]);
+	kprintf("%u -> ", value);
+	for (i = 7; i >= 0; i--) {
+		kprintf("%u", (value >> i) & 1);
+		if (i == 4) {
+			kprintf(" ");
+		}
+	}
+	kprintf("\n");
+
+	return 0;
+}
+
+/*
+ * Command for printing the hexadecimal representation of a number.
+ */
+int
+cmd_hex(int nargs, char **args)
+{
+	unsigned value;
+
+	if (nargs != 2) {
+		kprintf("Usage: hex number\n");
+		return EINVAL;
+	}
+
+	value = (unsigned)atoi(args[1]);
+	kprintf("%u -> 0x%x\n", value, value);
+	return 0;
+}
