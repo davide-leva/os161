@@ -321,6 +321,8 @@ file      ../common/libc/string/strtok_r.c
 #
 
 file      thread/clock.c
+file      thread/lock.c
+file      thread/cv.c
 file      thread/spl.c
 file      thread/spinlock.c
 file      thread/synch.c

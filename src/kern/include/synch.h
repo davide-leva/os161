@@ -63,38 +63,34 @@ void P(struct semaphore *);
 void V(struct semaphore *);
 
 
-/*
- * Simple lock for mutual exclusion.
- *
- * When the lock is created, no thread should be holding it. Likewise,
- * when the lock is destroyed, no thread should be holding it.
- *
- * The name field is for easier debugging. A copy of the name is
- * (should be) made internally.
- */
 struct lock {
-        char *lk_name;
         HANGMAN_LOCKABLE(lk_hangman);   /* Deadlock detector hook. */
-        // add what you need here
-        // (don't forget to mark things volatile as needed)
+        char            *lk_name;
+        struct wchan    *lk_wchan;
+        struct spinlock  lk_lock;
+        struct thread   *lk_owner;
+        volatile bool    lk_free;
 };
 
 struct lock *lock_create(const char *name);
 void lock_destroy(struct lock *);
 
-/*
- * Operations:
- *    lock_acquire - Get the lock. Only one thread can hold the lock at the
- *                   same time.
- *    lock_release - Free the lock. Only the thread holding the lock may do
- *                   this.
- *    lock_do_i_hold - Return true if the current thread holds the lock;
- *                   false otherwise.
- *
- * These operations must be atomic. You get to write them.
- */
+ /**
+  * Get the lock. Only one thread can hold the lock at the
+  * same time.
+  */
 void lock_acquire(struct lock *);
+
+/**
+ * Free the lock. Only the thread holding the lock may do
+ * this.
+ */
 void lock_release(struct lock *);
+
+/**
+ * Return true if the current thread holds the lock;
+ * false otherwise.
+ */
 bool lock_do_i_hold(struct lock *);
 
 
@@ -114,8 +110,8 @@ bool lock_do_i_hold(struct lock *);
 
 struct cv {
         char *cv_name;
-        // add what you need here
-        // (don't forget to mark things volatile as needed)
+        struct wchan *cv_wchan;
+        struct spinlock cv_lock;
 };
 
 struct cv *cv_create(const char *name);
