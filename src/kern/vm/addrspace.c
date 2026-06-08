@@ -33,12 +33,82 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <proc.h>
+#include <spl.h>
+#include <machine/tlb.h>
 
-/*
- * Note! If OPT_DUMBVM is set, as is the case until you start the VM
- * assignment, this file is not compiled or linked or in any way
- * used. The cheesy hack versions in dumbvm.c are used instead.
- */
+static void
+as_zero_region(struct addrregion *reg)
+{
+	reg->as_vbase = 0;
+	reg->as_pbase = 0;
+	reg->as_npages = 0;
+}
+
+static void
+as_free_region(struct addrregion *reg)
+{
+	if (reg->as_pbase != 0) {
+		free_kpages(PADDR_TO_KVADDR(reg->as_pbase));
+	}
+	as_zero_region(reg);
+}
+
+static int
+as_alloc_region(struct addrregion *reg)
+{
+	vaddr_t kvaddr;
+
+	if (reg->as_npages == 0 || reg->as_pbase != 0) {
+		return 0;
+	}
+
+	kvaddr = alloc_kpages(reg->as_npages);
+	if (kvaddr == 0) {
+		return ENOMEM;
+	}
+
+	reg->as_pbase = KVADDR_TO_PADDR(kvaddr);
+	bzero((void *)kvaddr, reg->as_npages * PAGE_SIZE);
+
+	return 0;
+}
+
+static int
+as_copy_region(const struct addrregion *old, struct addrregion *new)
+{
+	int result;
+
+	*new = *old;
+	new->as_pbase = 0;
+
+	result = as_alloc_region(new);
+	if (result) {
+		return result;
+	}
+
+	if (old->as_pbase != 0 && old->as_npages != 0) {
+		memmove((void *)PADDR_TO_KVADDR(new->as_pbase),
+			(const void *)PADDR_TO_KVADDR(old->as_pbase),
+			old->as_npages * PAGE_SIZE);
+	}
+
+	return 0;
+}
+
+static void
+as_flush_tlb(void)
+{
+	int spl;
+	unsigned i;
+
+	spl = splhigh();
+
+	for (i = 0; i < NUM_TLB; i++) {
+		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+	}
+
+	splx(spl);
+}
 
 struct addrspace *
 as_create(void)
@@ -50,9 +120,9 @@ as_create(void)
 		return NULL;
 	}
 
-	/*
-	 * Initialize as needed.
-	 */
+	as_zero_region(&as->reg1);
+	as_zero_region(&as->reg2);
+	as->as_stackpbase = 0;
 
 	return as;
 }
@@ -61,28 +131,58 @@ int
 as_copy(struct addrspace *old, struct addrspace **ret)
 {
 	struct addrspace *newas;
+	vaddr_t kvaddr;
+	int result;
 
 	newas = as_create();
 	if (newas==NULL) {
 		return ENOMEM;
 	}
 
-	/*
-	 * Write this.
-	 */
+	result = as_copy_region(&old->reg1, &newas->reg1);
+	if (result) {
+		as_destroy(newas);
+		return result;
+	}
 
-	(void)old;
+	result = as_copy_region(&old->reg2, &newas->reg2);
+	if (result) {
+		as_destroy(newas);
+		return result;
+	}
+
+	newas->as_stackpbase = 0;
+	if (old->as_stackpbase != 0) {
+		kvaddr = alloc_kpages(AS_STACKPAGES);
+		if (kvaddr == 0) {
+			as_destroy(newas);
+			return ENOMEM;
+		}
+
+		newas->as_stackpbase = KVADDR_TO_PADDR(kvaddr);
+		memmove((void *)kvaddr,
+			(const void *)PADDR_TO_KVADDR(old->as_stackpbase),
+			AS_STACKPAGES * PAGE_SIZE);
+	}
 
 	*ret = newas;
+
 	return 0;
 }
 
 void
 as_destroy(struct addrspace *as)
 {
-	/*
-	 * Clean up as needed.
-	 */
+	if (as == NULL) {
+		return;
+	}
+
+	as_free_region(&as->reg1);
+	as_free_region(&as->reg2);
+
+	if (as->as_stackpbase != 0) {
+		free_kpages(PADDR_TO_KVADDR(as->as_stackpbase));
+	}
 
 	kfree(as);
 }
@@ -101,19 +201,14 @@ as_activate(void)
 		return;
 	}
 
-	/*
-	 * Write this.
-	 */
+	(void)as;
+	as_flush_tlb();
 }
 
 void
 as_deactivate(void)
 {
-	/*
-	 * Write this. For many designs it won't need to actually do
-	 * anything. See proc.c for an explanation of why it (might)
-	 * be needed.
-	 */
+	as_flush_tlb();
 }
 
 /*
@@ -130,27 +225,60 @@ int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
 {
-	/*
-	 * Write this.
-	 */
+	struct addrregion *reg;
+	size_t offset;
 
-	(void)as;
-	(void)vaddr;
-	(void)memsize;
 	(void)readable;
 	(void)writeable;
 	(void)executable;
-	return ENOSYS;
+
+	if (as->reg1.as_npages == 0) {
+		reg = &as->reg1;
+	}
+	else if (as->reg2.as_npages == 0) {
+		reg = &as->reg2;
+	}
+	else {
+		return ENOSYS;
+	}
+
+	offset = vaddr & ~(vaddr_t)PAGE_FRAME;
+	vaddr &= PAGE_FRAME;
+	memsize += offset;
+
+	reg->as_vbase = vaddr;
+	reg->as_npages = DIVROUNDUP(memsize, PAGE_SIZE);
+	reg->as_pbase = 0;
+
+	return 0;
 }
 
 int
 as_prepare_load(struct addrspace *as)
 {
-	/*
-	 * Write this.
-	 */
+	vaddr_t kvaddr;
+	int result;
 
-	(void)as;
+	result = as_alloc_region(&as->reg1);
+	if (result) {
+		return result;
+	}
+
+	result = as_alloc_region(&as->reg2);
+	if (result) {
+		return result;
+	}
+
+	if (as->as_stackpbase == 0) {
+		kvaddr = alloc_kpages(AS_STACKPAGES);
+		if (kvaddr == 0) {
+			return ENOMEM;
+		}
+
+		as->as_stackpbase = KVADDR_TO_PADDR(kvaddr);
+		bzero((void *)kvaddr, AS_STACKPAGES * PAGE_SIZE);
+	}
+
 	return 0;
 }
 
@@ -168,10 +296,6 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	/*
-	 * Write this.
-	 */
-
 	(void)as;
 
 	/* Initial user-level stack pointer */
@@ -179,4 +303,3 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 
 	return 0;
 }
-

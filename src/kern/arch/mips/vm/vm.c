@@ -1,8 +1,12 @@
 #include <types.h>
 #include <kern/errno.h>
 #include <lib.h>
+#include <addrspace.h>
+#include <proc.h>
+#include <spl.h>
 #include <spinlock.h>
 #include <vm.h>
+#include <machine/tlb.h>
 
 struct frame_entry {
 	int allocated;
@@ -176,9 +180,61 @@ free_kpages(vaddr_t addr)
 int
 vm_fault(int faulttype, vaddr_t faultaddress)
 {
-	(void)faulttype;
-	(void)faultaddress;
-	return EFAULT;
+	struct addrspace *as;
+	paddr_t paddr;
+	vaddr_t vbase1, vtop1;
+	vaddr_t vbase2, vtop2;
+	vaddr_t stackbase, stacktop;
+	int spl;
+
+	switch (faulttype) {
+	case VM_FAULT_READ:
+	case VM_FAULT_WRITE:
+		break;
+	case VM_FAULT_READONLY:
+		return EFAULT;
+	default:
+		return EINVAL;
+	}
+
+	as = proc_getas();
+	if (as == NULL) {
+		return EFAULT;
+	}
+
+	faultaddress &= PAGE_FRAME;
+
+	vbase1 = as->reg1.as_vbase;
+	vtop1 = vbase1 + as->reg1.as_npages * PAGE_SIZE;
+	vbase2 = as->reg2.as_vbase;
+	vtop2 = vbase2 + as->reg2.as_npages * PAGE_SIZE;
+	stackbase = USERSTACK - AS_STACKPAGES * PAGE_SIZE;
+	stacktop = USERSTACK;
+
+	if (faultaddress >= vbase1 && faultaddress < vtop1) {
+		paddr = as->reg1.as_pbase + (faultaddress - vbase1);
+	}
+	else if (faultaddress >= vbase2 && faultaddress < vtop2) {
+		paddr = as->reg2.as_pbase + (faultaddress - vbase2);
+	}
+	else if (faultaddress >= stackbase && faultaddress < stacktop) {
+		paddr = as->as_stackpbase + (faultaddress - stackbase);
+	}
+	else {
+		return EFAULT;
+	}
+
+	if (paddr == 0) {
+		return EFAULT;
+	}
+
+	KASSERT((paddr & PAGE_FRAME) == paddr);
+
+	spl = splhigh();
+	tlb_random(faultaddress, paddr | TLBLO_DIRTY | TLBLO_VALID);
+	splx(spl);
+
+	return 0;
 }
 
 void

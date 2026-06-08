@@ -367,7 +367,7 @@ file      vfs/vnode.c
 
 #
 # VFS devices
-#
+# 
 
 file      vfs/devnull.c
 
