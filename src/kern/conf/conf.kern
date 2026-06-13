@@ -295,20 +295,20 @@ defoption noasserts
 # that those files have to have been hacked a bit to support this.
 #
 
-file      ../common/libc/printf/__printf.c
-file      ../common/libc/printf/snprintf.c
-file      ../common/libc/stdlib/atoi.c
-file      ../common/libc/string/bzero.c
-file      ../common/libc/string/memcpy.c
-file      ../common/libc/string/memmove.c
-file      ../common/libc/string/memset.c
-file      ../common/libc/string/strcat.c
-file      ../common/libc/string/strchr.c
-file      ../common/libc/string/strcmp.c
-file      ../common/libc/string/strcpy.c
-file      ../common/libc/string/strlen.c
-file      ../common/libc/string/strrchr.c
-file      ../common/libc/string/strtok_r.c
+file        ../common/libc/printf/__printf.c
+file        ../common/libc/printf/snprintf.c
+file        ../common/libc/stdlib/atoi.c
+file        ../common/libc/string/bzero.c
+file        ../common/libc/string/memcpy.c
+file        ../common/libc/string/memmove.c
+file        ../common/libc/string/memset.c
+file        ../common/libc/string/strcat.c
+file        ../common/libc/string/strchr.c
+file        ../common/libc/string/strcmp.c
+file        ../common/libc/string/strcpy.c
+file        ../common/libc/string/strlen.c
+file        ../common/libc/string/strrchr.c
+file        ../common/libc/string/strtok_r.c
 
 ########################################
 #                                      #
@@ -320,58 +320,60 @@ file      ../common/libc/string/strtok_r.c
 # Thread system
 #
 
-file      thread/clock.c
-file      thread/lock.c
-file      thread/cv.c
-file      thread/spl.c
-file      thread/spinlock.c
-file      thread/synch.c
-file      thread/thread.c
-file      thread/threadlist.c
+file        thread/clock.c
+file        thread/lock.c
+file        thread/cv.c
+file        thread/spl.c
+file        thread/spinlock.c
+file        thread/synch.c
+file        thread/thread.c
+file        thread/threadlist.c
 
-defoption hangman
-optfile   hangman thread/hangman.c
+defoption   hangman
+optfile     hangman thread/hangman.c
 
 #
 # Process system
 #
 
-file      proc/proc.c
+file        proc/proc.c
+defoption   waitpid
+defoption   fork
 
 #
 # Virtual memory system
 # (you will probably want to add stuff here while doing the VM assignment)
 #
 
-file      vm/kmalloc.c
+file        vm/kmalloc.c
 
-optofffile dumbvm   vm/addrspace.c
+optofffile  dumbvm   vm/addrspace.c
 
 #
 # Network
 # (nothing here yet)
 #
 
-defoption  net
-#optfile   net    net/net.c
+defoption   net
+#optfile    net    net/net.c
 
 #
 # VFS layer
 #
 
-file      vfs/device.c
-file      vfs/vfscwd.c
-file      vfs/vfsfail.c
-file      vfs/vfslist.c
-file      vfs/vfslookup.c
-file      vfs/vfspath.c
-file      vfs/vnode.c
+file        vfs/device.c
+file        vfs/vfscwd.c
+file        vfs/vfsfail.c
+file        vfs/vfslist.c
+file        vfs/vfslookup.c
+file        vfs/vfspath.c
+file        vfs/vnode.c
 
 #
 # VFS devices
 # 
 
-file      vfs/devnull.c
+file        vfs/devnull.c
 
 #
 # System call layer
@@ -382,9 +384,8 @@ file      vfs/devnull.c
 file        syscall/loadelf.c
 file        syscall/runprogram.c
 file        syscall/time_syscalls.c
-file        syscall/write.c
-file        syscall/read.c
-file        syscall/exit.c
+file        syscall/proc_syscalls.c
+file        syscall/io_syscalls.c
 
 #
 # Startup and initialization
@@ -403,22 +404,22 @@ file      main/menu.c
 # semfs (fake filesystem providing userlevel semaphores)
 #
 defoption semfs
-optfile   semfs  fs/semfs/semfs_fsops.c
-optfile   semfs  fs/semfs/semfs_obj.c
-optfile   semfs  fs/semfs/semfs_vnops.c
+optfile     semfs  fs/semfs/semfs_fsops.c
+optfile     semfs  fs/semfs/semfs_obj.c
+optfile     semfs  fs/semfs/semfs_vnops.c
 
 #
 # sfs (the small/simple filesystem)
 #
 
-defoption sfs
-optfile   sfs    fs/sfs/sfs_balloc.c
-optfile   sfs    fs/sfs/sfs_bmap.c
-optfile   sfs    fs/sfs/sfs_dir.c
-optfile   sfs    fs/sfs/sfs_fsops.c
-optfile   sfs    fs/sfs/sfs_inode.c
-optfile   sfs    fs/sfs/sfs_io.c
-optfile   sfs    fs/sfs/sfs_vnops.c
+defoption   sfs
+optfile     sfs    fs/sfs/sfs_balloc.c
+optfile     sfs    fs/sfs/sfs_bmap.c
+optfile     sfs    fs/sfs/sfs_dir.c
+optfile     sfs    fs/sfs/sfs_fsops.c
+optfile     sfs    fs/sfs/sfs_inode.c
+optfile     sfs    fs/sfs/sfs_io.c
+optfile     sfs    fs/sfs/sfs_vnops.c
 
 #
 # netfs (the networked filesystem - you might write this as one assignment)

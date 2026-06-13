@@ -37,6 +37,8 @@
  */
 
 #include <spinlock.h>
+#include <synch.h>
+#include <opt-waitpid.h>
 
 struct addrspace;
 struct thread;
@@ -59,18 +61,25 @@ struct vnode;
  * thread_switch needs to be able to fetch the current address space
  * without sleeping.
  */
+
 struct proc {
-	char *p_name;			/* Name of this process */
-	struct spinlock p_lock;		/* Lock for this structure */
-	unsigned p_numthreads;		/* Number of threads in this process */
+	char *p_name;					/* Name of this process */
+	struct spinlock p_lock;			/* Lock for this structure */
+	unsigned p_numthreads;			/* Number of threads in this process */
 
 	/* VM */
 	struct addrspace *p_addrspace;	/* virtual address space */
 
 	/* VFS */
-	struct vnode *p_cwd;		/* current working directory */
+	struct vnode *p_cwd;			/* current working directory */
 
-	/* add more material here as needed */
+#if OPT_WAITPID
+	int p_status;					/* status as obtained by exit() */
+	pid_t p_pid;					/* process identifier */
+	bool p_exited;					/* process has exited */
+	struct cv *p_waitcv;			/* wait condition variable */
+	struct lock *p_waitlock;		/* wait lock */
+#endif
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */
@@ -97,5 +106,10 @@ struct addrspace *proc_getas(void);
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
 
+/* Wait for process termination, and return exit status */
+int proc_wait(struct proc *proc);
+
+/* Get process from its identifier (pid) */
+struct proc *proc_search_pid(pid_t pid);
 
 #endif /* _PROC_H_ */

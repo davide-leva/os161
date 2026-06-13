@@ -50,6 +50,7 @@
 #include <addrspace.h>
 #include <mainbus.h>
 #include <vnode.h>
+#include <opt-waitpid.h>
 
 
 /* Magic number used as a guard value on kernel thread stacks. */
@@ -783,10 +784,11 @@ thread_exit(void)
 	cur = curthread;
 
 	/*
-	 * Detach from our process. You might need to move this action
-	 * around, depending on how your wait/exit works.
+	 * Detach from our process.
 	 */
-	proc_remthread(cur);
+	if (cur->t_proc != NULL) {
+		proc_remthread(cur);
+	}
 
 	/* Make sure we *are* detached (move this only if you're sure!) */
 	KASSERT(cur->t_proc == NULL);
@@ -795,7 +797,7 @@ thread_exit(void)
 	thread_checkstack(cur);
 
 	/* Interrupts off on this processor */
-        splhigh();
+	splhigh();
 	thread_switch(S_ZOMBIE, NULL, NULL);
 	panic("braaaaaaaiiiiiiiiiiinssssss\n");
 }

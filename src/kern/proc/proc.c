@@ -48,11 +48,101 @@
 #include <current.h>
 #include <addrspace.h>
 #include <vnode.h>
+#include <limits.h>
+
+#if OPT_WAITPID
+
+#define PTABLE_MAX 128
+		
+static struct ptable {
+	int active;							/* initial value 0 */
+	struct proc *proc[PTABLE_MAX + 1];
+	int last_index;						/* index of last allocated pid */
+	struct spinlock lock;				/* Lock for this table */
+} ptable;
+
+static
+int
+proc_ptable_alloc(struct proc *proc)
+{
+	int index = 0;
+	pid_t pid = 0;
+
+	spinlock_acquire(&ptable.lock);
+
+	index = ptable.last_index + 1;
+
+	if (index < PID_MIN) index = PID_MIN;
+	if (index > PTABLE_MAX) index = PID_MIN;
+	while (index != ptable.last_index) {
+		if (ptable.proc[index] == NULL) {
+			ptable.proc[index] = proc;
+			ptable.last_index = index;
+			pid = index;
+			break;
+		}
+		index++;
+		if (index > PTABLE_MAX) index = PID_MIN;
+	}
+
+	spinlock_release(&ptable.lock);
+
+	return pid;
+}
+
+static
+void
+proc_ptable_dealloc(struct proc *proc)
+{
+	pid_t index;
+
+	spinlock_acquire(&ptable.lock);
+	index = proc->p_pid;
+	KASSERT(index >= PID_MIN && index <= PTABLE_MAX);
+	ptable.proc[index] = NULL;
+	spinlock_release(&ptable.lock);
+}
+
+#endif
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  */
 struct proc *kproc;
+
+/* Initialize wait data - insert proc in ProcTable */
+static
+void
+proc_init_waitpid(struct proc *proc, const char *name)
+{
+#if OPT_WAITPID
+	if ((proc->p_pid = proc_ptable_alloc(proc))) {
+		proc->p_status = 0;
+		proc->p_exited = false;
+		proc->p_waitcv = cv_create(name);
+		proc->p_waitlock = lock_create(name);
+	} else {
+		panic("Too many processes. Process Table is full\n");
+	}
+#else
+	(void)proc
+	(void)name
+#endif
+}
+
+/* Destroy wait data - remove proc from ProcTable */
+static
+void
+proc_end_waitpid(struct proc *proc)
+{
+	#if OPT_WAITPID
+		proc_ptable_dealloc(proc);
+		cv_destroy(proc->p_waitcv);
+		lock_destroy(proc->p_waitlock);
+	#else
+		(void) proc;
+	#endif
+}
 
 /*
  * Create a proc structure.
@@ -75,6 +165,9 @@ proc_create(const char *name)
 
 	proc->p_numthreads = 0;
 	spinlock_init(&proc->p_lock);
+	
+	if (ptable.active)
+		proc_init_waitpid(proc, name);
 
 	/* VM fields */
 	proc->p_addrspace = NULL;
@@ -167,6 +260,8 @@ proc_destroy(struct proc *proc)
 
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
+	
+	proc_end_waitpid(proc);
 
 	kfree(proc->p_name);
 	kfree(proc);
@@ -182,6 +277,12 @@ proc_bootstrap(void)
 	if (kproc == NULL) {
 		panic("proc_create for kproc failed\n");
 	}
+
+#if OPT_WAITPID
+	spinlock_init(&ptable.lock);
+	ptable.active = 1;
+#endif
+
 }
 
 /*
@@ -317,4 +418,53 @@ proc_setas(struct addrspace *newas)
 	proc->p_addrspace = newas;
 	spinlock_release(&proc->p_lock);
 	return oldas;
+}
+
+/* Wait for process termination, and return exit status */
+int
+proc_wait(struct proc *proc)
+{
+	#if OPT_WAITPID
+		int return_status;
+
+		/* NULL and kernel proc forbidden */
+		KASSERT(proc != NULL);
+		KASSERT(proc != kproc);
+
+		/* wait on condition variable */
+		lock_acquire(proc->p_waitlock);
+		while (!proc->p_exited) {
+			cv_wait(proc->p_waitcv, proc->p_waitlock);
+		}
+		lock_release(proc->p_waitlock);
+
+		return_status = proc->p_status;
+		proc_destroy(proc);
+		return return_status;
+	#else 
+		(void)proc
+		return 0;
+	#endif
+}
+
+struct proc *
+proc_search_pid(pid_t pid)
+{
+#if OPT_WAITPID
+	struct proc *p;
+	if (pid < PID_MIN || pid > PTABLE_MAX) {
+		return NULL;
+	}
+
+	spinlock_acquire(&ptable.lock);
+	p = ptable.proc[pid];
+	if (p != NULL) {
+		KASSERT(p->p_pid == pid);
+	}
+	spinlock_release(&ptable.lock);
+	return p;
+#else
+	(void)pid;
+	return NULL;
+#endif
 }

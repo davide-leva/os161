@@ -41,6 +41,7 @@
 #include <threadlist.h>
 
 struct cpu;
+struct proc;
 
 /* get machine-dependent defs */
 #include <machine/thread.h>

@@ -116,7 +116,7 @@ common_prog(int nargs, char **args)
 {
 	struct proc *proc;
 	char *progarg;
-	int result;
+	int result, proc_result;
 
 	if (nargs > 1) {
 		kprintf("Warning: argument passing from menu not supported\n");
@@ -138,6 +138,10 @@ common_prog(int nargs, char **args)
 			proc /* new process */,
 			cmd_progthread /* thread function */,
 			progarg /* thread arg */, nargs /* thread arg */);
+
+	proc_result = proc_wait(proc);
+	kprintf("Process return code: %d\n", proc_result);
+	
 	if (result) {
 		kprintf("thread_fork failed: %s\n", strerror(result));
 		kfree(progarg);

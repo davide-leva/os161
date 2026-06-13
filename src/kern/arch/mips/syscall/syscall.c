@@ -100,31 +100,47 @@ syscall(struct trapframe *tf)
 	retval = 0;
 
 	switch (callno) {
-		case SYS__exit: // no. 3
+		case SYS_fork:		// no. 000
+		err = sys_fork(tf, &retval);
+		break;
+
+		case SYS__exit: 	// no. 003
 		sys__exit((int)tf->tf_a0);
 		err = 0;
 		break;
 
-		case SYS_read: // no. 50
+		case SYS_waitpid:	// no. 004
+			err = sys_waitpid(
+				(pid_t)tf->tf_a0,
+				(userptr_t)tf->tf_a1,
+				(int)tf->tf_a2,
+				&retval);
+			break;
+
+		case SYS_getpid: 	// no. 005
+		err = sys_getpid(&retval);
+		break;
+
+		case SYS_read: 		// no. 050
 		err = sys_read((int)tf->tf_a0,
 			(userptr_t)tf->tf_a1,
 			(size_t)tf->tf_a2,
 			&retval);
 		break;
 
-		case SYS_write: // no. 55
+		case SYS_write: 	// no. 055
 		err = sys_write((int)tf->tf_a0,
 			(userptr_t)tf->tf_a1,
 			(size_t)tf->tf_a2,
 			&retval);
 		break;
 
-	    case SYS___time: // no. 113
+	    case SYS___time: 	// no. 113
 		err = sys___time((userptr_t)tf->tf_a0,
 				 (userptr_t)tf->tf_a1);
 		break;
 
-		case SYS_reboot: // no. 119
+		case SYS_reboot: 	// no. 119
 		err = sys_reboot(tf->tf_a0);
 		break;
 
@@ -174,5 +190,17 @@ syscall(struct trapframe *tf)
 void
 enter_forked_process(struct trapframe *tf)
 {
-	(void)tf;
+	struct trapframe childtf;
+
+	KASSERT(tf != NULL);
+
+	memcpy(&childtf, tf, sizeof(childtf));
+	kfree(tf);
+
+	childtf.tf_v0 = 0;      /* fork returns 0 in the child */
+	childtf.tf_a3 = 0;      /* signal no error */
+	childtf.tf_epc += 4;    /* skip the syscall instruction */
+
+	mips_usermode(&childtf);
+	panic("mips_usermode returned (should not happen)\n");
 }

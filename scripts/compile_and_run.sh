@@ -6,6 +6,7 @@ debug=false
 floating_windows=false
 compile_only=false
 clean_only=false
+build_userland=false
 niri_workspace_changed=false
 
 default_config="DUMBVM"
@@ -100,10 +101,11 @@ Options:
   -f, --floating      Keep the xterms floating in the current workspace.
   -c, --compile-only  Build and install the kernel, then stop before running it.
   -k, --clean         Clean the selected kernel build directory, then stop.
+  -u, --userland      Also build and install the full userland tree.
   -w                  Legacy alias for --debug.
   -h, --help          Show this help.
 
-Short options can be combined; for example, -idfck is the same as -i -d -f -c -k.
+Short options can be combined; for example, -idfcku is the same as -i -d -f -c -k -u.
 
 Debug flow:
   1. Build and install the selected kernel.
@@ -137,6 +139,10 @@ while [ $# -gt 0 ]; do
 			clean_only=true
 			shift
 			;;
+		-u|--userland)
+			build_userland=true
+			shift
+			;;
 		-h|--help)
 			usage
 			exit 0
@@ -159,6 +165,9 @@ while [ $# -gt 0 ]; do
 						;;
 					k)
 						clean_only=true
+						;;
+					u)
+						build_userland=true
 						;;
 					h)
 						usage
@@ -519,9 +528,23 @@ bmake install
 
 log "Kernel build finished"
 
+if [ "$build_userland" = true ]; then
+	log "Building full userland"
+	if [ "$interactive" = true ]; then
+		"$project_home/scripts/compile_userland.sh" -i
+	else
+		"$project_home/scripts/compile_userland.sh"
+	fi
+	log "Userland build finished"
+fi
+
 if [ "$compile_only" = true ]; then
 	echo ""
-	echo "Compile-only mode: kernel built and installed."
+	if [ "$build_userland" = true ]; then
+		echo "Compile-only mode: kernel and userland built and installed."
+	else
+		echo "Compile-only mode: kernel built and installed."
+	fi
 	echo ""
 	exit 0
 fi
